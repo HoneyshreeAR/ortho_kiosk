@@ -1,0 +1,10 @@
+# Local secret configuration
+config.local.php
+.env
+
+# Mobile Gradle caches and build artifacts
+mobile_app/.gradle/
+mobile_app/app/build/
+mobile_app/build/
+.idea/
+*.iml
