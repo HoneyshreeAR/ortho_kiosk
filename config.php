@@ -1,4 +1,4 @@
-```php
+
 <?php
 /**
  * Ortho Kiosk - Application Configuration
@@ -765,4 +765,4 @@ function getLatestAssessment($pdo, $patient_id)
 
     return $stmt->fetch();
 }
-```
+
