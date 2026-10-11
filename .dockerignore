@@ -1,0 +1,8 @@
+
+.git
+.github
+.env
+.env.*
+config.local.php
+.DS_Store
+Thumbs.db
