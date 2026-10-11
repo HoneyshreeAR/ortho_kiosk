@@ -1,15 +1,27 @@
-
+```php
 <?php
-// config.php - Database configuration and helper functions
+/**
+ * Ortho Kiosk - Application Configuration
+ * PHP + MySQL deployment configuration
+ */
 
 date_default_timezone_set('Asia/Kolkata');
 
+/* ===================== SESSION ===================== */
+
 if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    if (!headers_sent()) {
+        session_start();
+    } else {
+        error_log(
+            'Cannot start session: output was sent before config.php.'
+        );
+    }
 }
 
-// ===================== DATABASE CONFIGURATION =====================
-// Render environment variables are used in deployment.
+/* ===================== DATABASE CONFIGURATION ===================== */
+
+// Configure these in Render -> Environment.
 // Local development defaults are retained.
 
 $host = getenv('DB_HOST') ?: 'localhost';
@@ -19,7 +31,12 @@ $password = getenv('DB_PASSWORD') ?: '';
 $port = getenv('DB_PORT') ?: '3306';
 
 try {
-    $dsn = "mysql:host=$host;port=$port;dbname=$dbname;charset=utf8mb4";
+    $dsn = sprintf(
+        'mysql:host=%s;port=%s;dbname=%s;charset=utf8mb4',
+        $host,
+        $port,
+        $dbname
+    );
 
     $pdo = new PDO($dsn, $username, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
@@ -27,120 +44,174 @@ try {
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 } catch (PDOException $e) {
-    error_log('Database connection failed: ' . $e->getMessage());
-    http_response_code(500);
-    exit('Database connection failed. Check the server configuration.');
+    error_log(
+        'Ortho Kiosk database connection failed: '
+        . $e->getMessage()
+    );
+
+    if (!headers_sent()) {
+        http_response_code(500);
+    }
+
+    exit(
+        'Database connection failed. '
+        . 'Please check the server configuration.'
+    );
 }
 
-// ===================== LANGUAGE SYSTEM =====================
+/* ===================== LANGUAGE SYSTEM ===================== */
+
 require_once __DIR__ . '/includes/lang.php';
 
-// ===================== CASHFREE PAYMENT CONFIG =====================
-// Configure credentials through Render environment variables.
-// Keep SANDBOX enabled until payment testing is complete.
+/* ===================== LOCAL CONFIGURATION ===================== */
 
-if (file_exists(__DIR__ . '/config.local.php')) {
-    require_once __DIR__ . '/config.local.php';
+// Optional local-only overrides.
+// Do not commit secret credentials to GitHub.
+
+$localConfig = __DIR__ . '/config.local.php';
+
+if (is_file($localConfig)) {
+    require_once $localConfig;
 }
 
+/* ===================== CASHFREE CONFIGURATION ===================== */
+
 if (!defined('CASHFREE_APP_ID')) {
-    define('CASHFREE_APP_ID', getenv('CASHFREE_APP_ID') ?: '');
+    define(
+        'CASHFREE_APP_ID',
+        getenv('CASHFREE_APP_ID') ?: ''
+    );
 }
 
 if (!defined('CASHFREE_SECRET_KEY')) {
-    define('CASHFREE_SECRET_KEY', getenv('CASHFREE_SECRET_KEY') ?: '');
+    define(
+        'CASHFREE_SECRET_KEY',
+        getenv('CASHFREE_SECRET_KEY') ?: ''
+    );
 }
 
 if (!defined('CASHFREE_ENV')) {
-    define('CASHFREE_ENV', getenv('CASHFREE_ENV') ?: 'SANDBOX');
+    define(
+        'CASHFREE_ENV',
+        strtoupper(getenv('CASHFREE_ENV') ?: 'SANDBOX')
+    );
 }
 
 define('CASHFREE_API_VERSION', '2023-08-01');
 
 if (CASHFREE_ENV === 'PRODUCTION') {
-    define('CASHFREE_BASE_URL', 'https://api.cashfree.com/pg');
+    define(
+        'CASHFREE_BASE_URL',
+        'https://api.cashfree.com/pg'
+    );
 } else {
-    define('CASHFREE_BASE_URL', 'https://sandbox.cashfree.com/pg');
+    define(
+        'CASHFREE_BASE_URL',
+        'https://sandbox.cashfree.com/pg'
+    );
 }
 
-define('CASHFREE_JS_SDK', 'https://sdk.cashfree.com/js/v3/cashfree.js');
 define(
-    'CASHFREE_MODE',
-    CASHFREE_ENV === 'PRODUCTION' ? 'production' : 'sandbox'
+    'CASHFREE_JS_SDK',
+    'https://sdk.cashfree.com/js/v3/cashfree.js'
 );
 
-// =================== END CASHFREE PAYMENT CONFIG ===================
+define(
+    'CASHFREE_MODE',
+    CASHFREE_ENV === 'PRODUCTION'
+        ? 'production'
+        : 'sandbox'
+);
 
-// ===================== SMS NOTIFICATION CONFIG =====================
-// Simulation mode is safe for initial deployment.
-// Real SMS requires valid provider credentials.
+/* ===================== SMS CONFIGURATION ===================== */
 
 if (!defined('REMINDER_SMS_PROVIDER')) {
     define(
         'REMINDER_SMS_PROVIDER',
-        getenv('REMINDER_SMS_PROVIDER') ?: 'SIMULATION'
+        strtoupper(
+            getenv('REMINDER_SMS_PROVIDER') ?: 'SIMULATION'
+        )
     );
 }
 
 if (!defined('FAST2SMS_API_KEY')) {
-    define('FAST2SMS_API_KEY', getenv('FAST2SMS_API_KEY') ?: '');
+    define(
+        'FAST2SMS_API_KEY',
+        getenv('FAST2SMS_API_KEY') ?: ''
+    );
 }
 
 if (!defined('TWILIO_ACCOUNT_SID')) {
-    define('TWILIO_ACCOUNT_SID', getenv('TWILIO_ACCOUNT_SID') ?: '');
+    define(
+        'TWILIO_ACCOUNT_SID',
+        getenv('TWILIO_ACCOUNT_SID') ?: ''
+    );
 }
 
 if (!defined('TWILIO_AUTH_TOKEN')) {
-    define('TWILIO_AUTH_TOKEN', getenv('TWILIO_AUTH_TOKEN') ?: '');
+    define(
+        'TWILIO_AUTH_TOKEN',
+        getenv('TWILIO_AUTH_TOKEN') ?: ''
+    );
 }
 
 if (!defined('TWILIO_PHONE_NUMBER')) {
-    define('TWILIO_PHONE_NUMBER', getenv('TWILIO_PHONE_NUMBER') ?: '');
+    define(
+        'TWILIO_PHONE_NUMBER',
+        getenv('TWILIO_PHONE_NUMBER') ?: ''
+    );
 }
 
-// =================== END NOTIFICATION CONFIG ===================
+/* ===================== CLINIC SETTINGS ===================== */
 
-
-// ===================== CLINIC SETTINGS HELPERS =====================
-
-function getClinicSetting($pdo, $key, $default = '') {
+function getClinicSetting($pdo, $key, $default = '')
+{
     try {
         $stmt = $pdo->prepare(
-            "SELECT setting_value
+            'SELECT setting_value
              FROM clinic_settings
-             WHERE setting_key = ?"
+             WHERE setting_key = ?
+             LIMIT 1'
         );
-        $stmt->execute([$key]);
-        $val = $stmt->fetchColumn();
 
-        return ($val !== false && $val !== null && $val !== '')
-            ? $val
-            : $default;
-    } catch (Exception $e) {
+        $stmt->execute([$key]);
+        $value = $stmt->fetchColumn();
+
+        return (
+            $value !== false &&
+            $value !== null &&
+            $value !== ''
+        ) ? $value : $default;
+    } catch (Throwable $e) {
         return $default;
     }
 }
 
-function setClinicSetting($pdo, $key, $value) {
+function setClinicSetting($pdo, $key, $value)
+{
     try {
         $stmt = $pdo->prepare(
-            "INSERT INTO clinic_settings
+            'INSERT INTO clinic_settings
                 (setting_key, setting_value)
              VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE setting_value = ?"
+             ON DUPLICATE KEY UPDATE
+                setting_value = VALUES(setting_value)'
         );
 
-        return $stmt->execute([$key, $value, $value]);
-    } catch (Exception $e) {
-        error_log('Failed to update clinic setting: ' . $e->getMessage());
+        return $stmt->execute([$key, $value]);
+    } catch (Throwable $e) {
+        error_log(
+            'Clinic setting update failed: ' . $e->getMessage()
+        );
+
         return false;
     }
 }
 
+/* ===================== REMINDER DATABASE SCHEMA ===================== */
 
-// ===================== REMINDER DATABASE SCHEMA =====================
-
-function ensureReminderSchema($pdo) {
+function ensureReminderSchema($pdo)
+{
     static $checked = false;
 
     if ($checked) {
@@ -150,7 +221,6 @@ function ensureReminderSchema($pdo) {
     $checked = true;
 
     try {
-        // 1. Clinic settings table
         $pdo->exec(
             "CREATE TABLE IF NOT EXISTS clinic_settings (
                 setting_key VARCHAR(100) PRIMARY KEY,
@@ -160,60 +230,93 @@ function ensureReminderSchema($pdo) {
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
         );
 
-        // 2. Add reminder columns when they do not exist
-        $checkCol = $pdo->query(
-            "SHOW COLUMNS FROM medicine_reminders
-             LIKE 'reminder_times'"
-        )->fetch();
+        // Check the reminder table before altering it.
+        $tableCheck = $pdo->query(
+            "SHOW TABLES LIKE 'medicine_reminders'"
+        )->fetchColumn();
 
-        if (!$checkCol) {
-            $pdo->exec(
-                "ALTER TABLE medicine_reminders
+        if ($tableCheck) {
+            $columns = [
+                'reminder_times' => "
+                    ALTER TABLE medicine_reminders
                     ADD COLUMN reminder_times
-                        VARCHAR(255) DEFAULT '08:00,13:00,20:00',
+                    VARCHAR(255) DEFAULT '08:00,13:00,20:00'
+                ",
+                'send_sms' => "
+                    ALTER TABLE medicine_reminders
                     ADD COLUMN send_sms
-                        TINYINT(1) NOT NULL DEFAULT 1,
+                    TINYINT(1) NOT NULL DEFAULT 1
+                ",
+                'alarm_enabled' => "
+                    ALTER TABLE medicine_reminders
                     ADD COLUMN alarm_enabled
-                        TINYINT(1) NOT NULL DEFAULT 1"
-            );
+                    TINYINT(1) NOT NULL DEFAULT 1
+                ",
+            ];
+
+            foreach ($columns as $column => $sql) {
+                $stmt = $pdo->prepare(
+                    "SHOW COLUMNS FROM medicine_reminders LIKE ?"
+                );
+
+                $stmt->execute([$column]);
+
+                if (!$stmt->fetch()) {
+                    $pdo->exec($sql);
+                }
+            }
         }
 
-        // 3. Medicine notification log
-        $pdo->exec(
-            "CREATE TABLE IF NOT EXISTS medicine_notifications_log (
-                id INT AUTO_INCREMENT PRIMARY KEY,
-                patient_id INT NOT NULL,
-                medicine_id INT NOT NULL,
-                alert_type ENUM('sms', 'alarm', 'push')
-                    NOT NULL DEFAULT 'sms',
-                phone VARCHAR(20) NOT NULL,
-                message TEXT NOT NULL,
-                status ENUM(
-                    'sent',
-                    'delivered',
-                    'failed',
-                    'triggered'
-                ) NOT NULL DEFAULT 'sent',
-                scheduled_time TIME NULL,
-                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                INDEX idx_patient_med (patient_id, medicine_id),
-                INDEX idx_sent_at (sent_at),
-                FOREIGN KEY (patient_id)
-                    REFERENCES patients(id) ON DELETE CASCADE,
-                FOREIGN KEY (medicine_id)
-                    REFERENCES medicine_reminders(id) ON DELETE CASCADE
-            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+        // Create the notification log only when the required
+        // parent tables are available.
+        $patientsExists = $pdo->query(
+            "SHOW TABLES LIKE 'patients'"
+        )->fetchColumn();
+
+        $remindersExists = $pdo->query(
+            "SHOW TABLES LIKE 'medicine_reminders'"
+        )->fetchColumn();
+
+        if ($patientsExists && $remindersExists) {
+            $pdo->exec(
+                "CREATE TABLE IF NOT EXISTS
+                medicine_notifications_log (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    patient_id INT NOT NULL,
+                    medicine_id INT NOT NULL,
+                    alert_type ENUM('sms','alarm','push')
+                        NOT NULL DEFAULT 'sms',
+                    phone VARCHAR(20) NOT NULL,
+                    message TEXT NOT NULL,
+                    status ENUM(
+                        'sent',
+                        'delivered',
+                        'failed',
+                        'triggered'
+                    ) NOT NULL DEFAULT 'sent',
+                    scheduled_time TIME NULL,
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    INDEX idx_patient_med
+                        (patient_id, medicine_id),
+                    INDEX idx_sent_at (sent_at),
+                    FOREIGN KEY (patient_id)
+                        REFERENCES patients(id) ON DELETE CASCADE,
+                    FOREIGN KEY (medicine_id)
+                        REFERENCES medicine_reminders(id)
+                        ON DELETE CASCADE
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+            );
+        }
+    } catch (Throwable $e) {
+        error_log(
+            'Reminder schema setup failed: ' . $e->getMessage()
         );
-    } catch (Exception $e) {
-        // Tables may not exist until the initial database import.
-        error_log('Reminder schema setup: ' . $e->getMessage());
     }
 }
 
 ensureReminderSchema($pdo);
 
-
-// ===================== LOG MEDICINE NOTIFICATIONS =====================
+/* ===================== LOG MEDICINE NOTIFICATIONS ===================== */
 
 function logMedicineAlert(
     $pdo,
@@ -227,7 +330,7 @@ function logMedicineAlert(
 ) {
     try {
         $stmt = $pdo->prepare(
-            "INSERT INTO medicine_notifications_log
+            'INSERT INTO medicine_notifications_log
                 (
                     patient_id,
                     medicine_id,
@@ -237,7 +340,7 @@ function logMedicineAlert(
                     status,
                     scheduled_time
                 )
-             VALUES (?, ?, ?, ?, ?, ?, ?)"
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
 
         $stmt->execute([
@@ -251,14 +354,17 @@ function logMedicineAlert(
         ]);
 
         return $pdo->lastInsertId();
-    } catch (Exception $e) {
-        error_log('Failed to log alert: ' . $e->getMessage());
+    } catch (Throwable $e) {
+        error_log(
+            'Medicine notification logging failed: '
+            . $e->getMessage()
+        );
+
         return false;
     }
 }
 
-
-// ===================== SEND PATIENT SMS =====================
+/* ===================== SEND PATIENT SMS ===================== */
 
 function sendPatientSMS(
     $phone,
@@ -268,44 +374,64 @@ function sendPatientSMS(
     $med_id = null,
     $scheduled_time = null
 ) {
-    // Normalize the phone number for Indian recipients.
-    $cleanPhone = preg_replace('/[^0-9]/', '', $phone);
+    $cleanPhone = preg_replace('/\D+/', '', (string) $phone);
+
     $tenDigit = strlen($cleanPhone) >= 10
         ? substr($cleanPhone, -10)
         : $cleanPhone;
 
-    // Read provider settings from the database first.
     $provider = $pdo
-        ? getClinicSetting($pdo, 'sms_provider', REMINDER_SMS_PROVIDER)
+        ? getClinicSetting(
+            $pdo,
+            'sms_provider',
+            REMINDER_SMS_PROVIDER
+        )
         : REMINDER_SMS_PROVIDER;
 
+    $provider = strtoupper($provider);
+
     $fast2smsKey = $pdo
-        ? getClinicSetting($pdo, 'fast2sms_api_key', FAST2SMS_API_KEY)
+        ? getClinicSetting(
+            $pdo,
+            'fast2sms_api_key',
+            FAST2SMS_API_KEY
+        )
         : FAST2SMS_API_KEY;
 
     $twilioSid = $pdo
-        ? getClinicSetting($pdo, 'twilio_account_sid', TWILIO_ACCOUNT_SID)
+        ? getClinicSetting(
+            $pdo,
+            'twilio_account_sid',
+            TWILIO_ACCOUNT_SID
+        )
         : TWILIO_ACCOUNT_SID;
 
     $twilioToken = $pdo
-        ? getClinicSetting($pdo, 'twilio_auth_token', TWILIO_AUTH_TOKEN)
+        ? getClinicSetting(
+            $pdo,
+            'twilio_auth_token',
+            TWILIO_AUTH_TOKEN
+        )
         : TWILIO_AUTH_TOKEN;
 
     $twilioPhone = $pdo
-        ? getClinicSetting($pdo, 'twilio_phone_number', TWILIO_PHONE_NUMBER)
+        ? getClinicSetting(
+            $pdo,
+            'twilio_phone_number',
+            TWILIO_PHONE_NUMBER
+        )
         : TWILIO_PHONE_NUMBER;
 
     $status = 'sent';
-    $gatewayFeedback = '';
+    $feedback = '';
 
-    // Fast2SMS
-    if ($provider === 'FAST2SMS' && !empty($fast2smsKey)) {
+    if ($provider === 'FAST2SMS' && $fast2smsKey !== '') {
         $fields = [
             'route' => 'q',
             'message' => $message,
             'language' => 'english',
             'flash' => 0,
-            'numbers' => $tenDigit
+            'numbers' => $tenDigit,
         ];
 
         $curl = curl_init();
@@ -313,73 +439,68 @@ function sendPatientSMS(
         curl_setopt_array($curl, [
             CURLOPT_URL => 'https://www.fast2sms.com/dev/bulkV2',
             CURLOPT_RETURNTRANSFER => true,
-            CURLOPT_CUSTOMREQUEST => 'POST',
+            CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => json_encode($fields),
             CURLOPT_HTTPHEADER => [
                 'authorization: ' . trim($fast2smsKey),
-                'accept: */*',
-                'cache-control: no-cache',
-                'content-type: application/json'
+                'accept: application/json',
+                'content-type: application/json',
             ],
             CURLOPT_TIMEOUT => 15,
             CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2
+            CURLOPT_SSL_VERIFYHOST => 2,
         ]);
 
         $response = curl_exec($curl);
-        $err = curl_error($curl);
+        $error = curl_error($curl);
         $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 
         curl_close($curl);
 
-        if ($err) {
+        if ($error) {
             $status = 'failed';
-            $gatewayFeedback = 'Network cURL error: ' . $err;
+            $feedback = 'Fast2SMS connection failed.';
+            error_log('Fast2SMS cURL error: ' . $error);
         } else {
-            $respJson = json_decode($response, true);
+            $json = json_decode($response, true);
 
             if (
                 $httpCode >= 200 &&
                 $httpCode < 300 &&
-                isset($respJson['return']) &&
-                $respJson['return'] === true
+                isset($json['return']) &&
+                $json['return'] === true
             ) {
-                $status = 'delivered';
-                $gatewayFeedback = 'SMS accepted by Fast2SMS.';
+                $status = 'sent';
+                $feedback = 'Fast2SMS accepted the request.';
             } else {
                 $status = 'failed';
-
-                $gatewayFeedback = isset($respJson['message'])
-                    ? (
-                        is_array($respJson['message'])
-                            ? implode(', ', $respJson['message'])
-                            : $respJson['message']
-                    )
-                    : 'Fast2SMS returned an error.';
+                $feedback = 'Fast2SMS rejected the request.';
+                error_log('Fast2SMS returned HTTP ' . $httpCode);
             }
         }
-    }
-
-    // Twilio
-    elseif (
+    } elseif (
         $provider === 'TWILIO' &&
-        !empty($twilioSid) &&
-        !empty($twilioToken) &&
-        !empty($twilioPhone)
+        $twilioSid !== '' &&
+        $twilioToken !== '' &&
+        $twilioPhone !== ''
     ) {
         $url = 'https://api.twilio.com/2010-04-01/Accounts/'
             . rawurlencode($twilioSid)
             . '/Messages.json';
 
+        $toPhone = preg_match('/^\+/', (string) $phone)
+            ? $phone
+            : '+91' . $tenDigit;
+
         $data = [
             'From' => $twilioPhone,
-            'To' => '+91' . $tenDigit,
-            'Body' => $message
+            'To' => $toPhone,
+            'Body' => $message,
         ];
 
-        $ch = curl_init();
+        $curl = curl_init();
 
-        curl_setopt_array($ch, [
+        curl_setopt_array($curl, [
             CURLOPT_URL => $url,
             CURLOPT_POST => true,
             CURLOPT_RETURNTRANSFER => true,
@@ -387,41 +508,40 @@ function sendPatientSMS(
             CURLOPT_POSTFIELDS => http_build_query($data),
             CURLOPT_TIMEOUT => 15,
             CURLOPT_SSL_VERIFYPEER => true,
-            CURLOPT_SSL_VERIFYHOST => 2
+            CURLOPT_SSL_VERIFYHOST => 2,
         ]);
 
-        $res = curl_exec($ch);
-        $err = curl_error($ch);
-        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-        curl_close($ch);
+        $response = curl_exec($curl);
+        $error = curl_error($curl);
+        $httpCode = curl_getinfo($curl, CURLINFO_HTTP_CODE);
 
-        if ($err) {
+        curl_close($curl);
+
+        if ($error) {
             $status = 'failed';
-            $gatewayFeedback = 'Twilio connection error: ' . $err;
+            $feedback = 'Twilio connection failed.';
+            error_log('Twilio cURL error: ' . $error);
         } else {
-            $respJson = json_decode($res, true);
+            $json = json_decode($response, true);
 
             if (
                 $httpCode >= 200 &&
                 $httpCode < 300 &&
-                !empty($respJson['sid'])
+                !empty($json['sid'])
             ) {
-                // The provider accepted the message; delivery is not guaranteed yet.
                 $status = 'sent';
-                $gatewayFeedback = 'Twilio accepted the SMS request.';
+                $feedback = 'Twilio accepted the request.';
             } else {
                 $status = 'failed';
-                $gatewayFeedback = 'Twilio rejected the SMS request.';
+                $feedback = 'Twilio rejected the request.';
+                error_log('Twilio returned HTTP ' . $httpCode);
             }
         }
-    }
-
-    // Simulation mode
-    else {
+    } else {
+        // Simulation does not send a real SMS.
         $status = 'sent';
-        $gatewayFeedback =
-            'Simulation mode: no real SMS was sent. '
-            . 'Configure a valid SMS provider to send messages.';
+        $feedback =
+            'Simulation mode: no real SMS was sent.';
     }
 
     if ($pdo && $patient_id && $med_id) {
@@ -438,53 +558,65 @@ function sendPatientSMS(
     }
 
     return [
-        'success' => ($status === 'sent' || $status === 'delivered'),
+        'success' => in_array(
+            $status,
+            ['sent', 'delivered'],
+            true
+        ),
         'provider' => $provider,
         'phone' => $phone,
         'status' => $status,
-        'feedback' => $gatewayFeedback
+        'feedback' => $feedback,
     ];
 }
 
+/* ===================== RECENT MEDICINE ALERTS ===================== */
 
-// ===================== RECENT MEDICINE ALERTS =====================
-
-function getRecentMedicineAlerts($pdo, $patient_id, $limit = 10) {
+function getRecentMedicineAlerts($pdo, $patient_id, $limit = 10)
+{
     try {
+        $limit = max(1, min(100, (int) $limit));
+
         $stmt = $pdo->prepare(
-            "SELECT l.*, m.medicine_name, m.dosage
+            'SELECT l.*, m.medicine_name, m.dosage
              FROM medicine_notifications_log l
              LEFT JOIN medicine_reminders m
                 ON l.medicine_id = m.id
              WHERE l.patient_id = ?
              ORDER BY l.sent_at DESC
-             LIMIT ?"
+             LIMIT ?'
         );
 
-        $stmt->bindValue(1, $patient_id, PDO::PARAM_INT);
+        $stmt->bindValue(
+            1,
+            (int) $patient_id,
+            PDO::PARAM_INT
+        );
+
         $stmt->bindValue(2, $limit, PDO::PARAM_INT);
         $stmt->execute();
 
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    } catch (Exception $e) {
+        return $stmt->fetchAll();
+    } catch (Throwable $e) {
         return [];
     }
 }
 
+/* ===================== PATIENT HELPERS ===================== */
 
-// ===================== PATIENT HELPERS =====================
-
-function getPatientById($pdo, $patient_id) {
+function getPatientById($pdo, $patient_id)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM patients WHERE id = ?'
     );
 
     $stmt->execute([$patient_id]);
 
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    return $stmt->fetch();
 }
 
-function getPainAssessments($pdo, $patient_id) {
+function getPainAssessments($pdo, $patient_id)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM pain_assessments
          WHERE patient_id = ?
@@ -493,11 +625,10 @@ function getPainAssessments($pdo, $patient_id) {
 
     $stmt->execute([$patient_id]);
 
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $stmt->fetchAll();
 }
 
-
-// ===================== PAIN CLASSIFICATION =====================
+/* ===================== PAIN CLASSIFICATION ===================== */
 
 function classifyPain(
     $pain_quality,
@@ -505,21 +636,28 @@ function classifyPain(
     $activity_aggravation,
     $pain_type_other = null
 ) {
-    if ($pain_quality == 'burning' || $pain_quality == 'shooting') {
+    if (
+        $pain_quality === 'burning' ||
+        $pain_quality === 'shooting'
+    ) {
         return 'neuropathic';
-    } elseif ($duration_weeks > 12) {
-        return 'chronic';
-    } elseif ($activity_aggravation == 'yes') {
-        return 'mechanical';
-    } else {
-        return 'musculoskeletal';
     }
+
+    if ((int) $duration_weeks > 12) {
+        return 'chronic';
+    }
+
+    if ($activity_aggravation === 'yes') {
+        return 'mechanical';
+    }
+
+    return 'musculoskeletal';
 }
 
+/* ===================== SPECIALIST RECOMMENDATION ===================== */
 
-// ===================== SPECIALIST RECOMMENDATION =====================
-
-function getSpecialist($pdo, $classification) {
+function getSpecialist($pdo, $classification)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM physiotherapists
          WHERE LOWER(specialization) LIKE LOWER(?)
@@ -527,14 +665,14 @@ function getSpecialist($pdo, $classification) {
     );
 
     $stmt->execute(['%' . $classification . '%']);
-    $specialist = $stmt->fetch(PDO::FETCH_ASSOC);
+    $specialist = $stmt->fetch();
 
     if (!$specialist) {
         $stmt = $pdo->query(
             'SELECT * FROM physiotherapists LIMIT 1'
         );
 
-        $specialist = $stmt->fetch(PDO::FETCH_ASSOC);
+        $specialist = $stmt->fetch();
     }
 
     if (!$specialist) {
@@ -544,48 +682,48 @@ function getSpecialist($pdo, $classification) {
             'room_number' => 'Main Clinic - Room 101',
             'availability' => 'Monday to Friday, 9 AM - 5 PM',
             'navigation_instructions' =>
-                'Please proceed to the main reception desk for assistance.'
+                'Please proceed to the main reception desk.',
         ];
     }
 
     return $specialist;
 }
 
+/* ===================== EXERCISE RECOMMENDATIONS ===================== */
 
-// ===================== EXERCISE RECOMMENDATIONS =====================
-
-function getExercises($classification, $body_part) {
+function getExercises($classification, $body_part)
+{
     $exercises = [
         'musculoskeletal' => [
-            'Stretching exercises for affected area',
+            'Stretching exercises for the affected area',
             'Strengthening with resistance bands',
-            'Range of motion movements'
+            'Range-of-motion movements',
         ],
         'neuropathic' => [
             'Nerve gliding exercises',
             'Gentle desensitization techniques',
-            'Posture correction drills'
+            'Posture correction drills',
         ],
         'mechanical' => [
             'Core stabilization exercises',
-            'Joint mobilization activities',
-            'Ergonomic adjustments'
+            'Joint mobility activities',
+            'Ergonomic adjustments',
         ],
         'chronic' => [
             'Graded motor imagery',
             'Low-impact aerobic conditioning',
-            'Pain neuroscience education'
-        ]
+            'Pain neuroscience education',
+        ],
     ];
 
     return $exercises[$classification]
         ?? $exercises['musculoskeletal'];
 }
 
+/* ===================== MEDICINE REMINDERS ===================== */
 
-// ===================== MEDICINE REMINDERS =====================
-
-function getMedicineReminders($pdo, $patient_id) {
+function getMedicineReminders($pdo, $patient_id)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM medicine_reminders
          WHERE patient_id = ?
@@ -594,13 +732,13 @@ function getMedicineReminders($pdo, $patient_id) {
 
     $stmt->execute([$patient_id]);
 
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $stmt->fetchAll();
 }
 
+/* ===================== FOLLOW-UP REMINDERS ===================== */
 
-// ===================== FOLLOW-UP REMINDERS =====================
-
-function getFollowupReminders($pdo, $patient_id) {
+function getFollowupReminders($pdo, $patient_id)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM followup_reminders
          WHERE patient_id = ?
@@ -609,13 +747,13 @@ function getFollowupReminders($pdo, $patient_id) {
 
     $stmt->execute([$patient_id]);
 
-    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    return $stmt->fetchAll();
 }
 
+/* ===================== LATEST ASSESSMENT ===================== */
 
-// ===================== LATEST ASSESSMENT =====================
-
-function getLatestAssessment($pdo, $patient_id) {
+function getLatestAssessment($pdo, $patient_id)
+{
     $stmt = $pdo->prepare(
         'SELECT * FROM pain_assessments
          WHERE patient_id = ?
@@ -625,8 +763,6 @@ function getLatestAssessment($pdo, $patient_id) {
 
     $stmt->execute([$patient_id]);
 
-    return $stmt->fetch(PDO::FETCH_ASSOC);
+    return $stmt->fetch();
 }
-
-// ===================== END CONFIG.PHP =====================
-?>
+```
